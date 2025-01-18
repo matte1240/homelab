@@ -26,6 +26,7 @@ services:
         # Your domains (separated by commas)
       - PROXIED=true
         # Tell Cloudflare to cache webpages and hide your IP (optional)
+      - IP6_PROVIDER=none
 #networks:
 #  LAN0:
 #    external: true
