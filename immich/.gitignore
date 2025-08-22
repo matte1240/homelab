@@ -1,5 +1,6 @@
 # Environment variables
 .env
+.env.backup
 
 # Upload directory
 library/
