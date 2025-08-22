@@ -62,7 +62,7 @@ Questo repository contiene una completa configurazione homelab basata su Docker 
 
 ### 🔄 Tutti i Servizi (Unificati in `base-services/`)
 
-Tutti i servizi sono ora consolidati in un unico file Docker Compose per una gestione semplificata:
+⚡ **ATTENZIONE**: Tutti i servizi sono ora consolidati in un unico file Docker Compose per una gestione semplificata.
 
 | Servizio | Porta | URL | Descrizione |
 |----------|-------|-----|-------------|
@@ -118,15 +118,25 @@ Tutti i servizi sono ora consolidati in un unico file Docker Compose per una ges
    chmod +x manage.sh
    ```
 
-4. **Avvia tutti i servizi:**
+4. **Avvia l'intera infrastruttura con un comando:**
    ```bash
+   # Linux/Mac
    ./manage.sh start
+   
+   # Windows PowerShell  
+   .\manage.ps1 start
    ```
 
-5. **Verifica lo stato:**
+5. **Verifica che tutti i servizi siano attivi:**
    ```bash
+   # Linux/Mac
    ./manage.sh status
+   
+   # Windows PowerShell
+   .\manage.ps1 status
    ```
+
+🎉 **Fatto! Tutti i servizi sono ora attivi e gestiti centralmente.**
 
 ### Accesso ai Servizi
 
@@ -152,16 +162,9 @@ homelab/
 │   └── 📁 traefik/            # Configurazione Traefik
 │       ├── ⚙️ traefik.yml      # Configurazione statica
 │       └── ⚙️ dynamic.yml     # Configurazione dinamica
-├── 📁 dyndns/                 # DNS dinamico
-│   └── 🐳 compose.yml         # Cloudflare DDNS
-├── 📁 immich/                 # Backup foto/video
-│   ├── 🐳 compose.yml         # Stack Immich
-│   ├── 🔧 setup.sh            # Script di configurazione
-│   ├── 📄 .env.example        # Template variabili ambiente
-│   ├── 🚫 .gitignore          # File da escludere
-│   └── 📁 library/            # Directory foto (creata automaticamente)
-├── 📁 nginx/                  # Nginx Proxy Manager
-│   └── 🐳 compose.yml         # Configurazione NPM
+├── 📁 dyndns/                 # ⚠️ RIMOSSA - DNS ora in base-services
+├── 📁 immich/                 # ⚠️ RIMOSSA - Immich ora in base-services  
+├── 📁 nginx/                  # ⚠️ RIMOSSA - Nginx PM ora in base-services
 ├── 🔧 manage.sh               # Script di gestione principale
 ├── 📄 .env.example            # Template variabili ambiente globali
 ├── 🚫 .gitignore              # File da escludere da Git
@@ -169,6 +172,22 @@ homelab/
 ├── 🛠️ TROUBLESHOOTING.md      # Guida risoluzione problemi
 └── 📋 CHANGELOG.md            # Changelog del progetto
 ```
+
+## ⚠️ **IMPORTANTE: Architettura Unificata**
+
+🎯 **A partire dalla versione 2.0.0, tutti i servizi sono stati consolidati in un unico file Docker Compose:**
+
+- ✅ **NUOVO**: `base-services/compose.yml` contiene **TUTTI** i servizi
+- ❌ **OBSOLETO**: Le cartelle `dyndns/`, `immich/`, `nginx/` sono state rimosse
+- 🔧 **GESTIONE**: Usa gli script `manage.sh` (Linux/Mac) o `manage.ps1` (Windows)
+- 📊 **MONITORAGGIO**: Tutti i servizi condividono la stessa rete interna
+- 🔒 **SICUREZZA**: Configurazione centralizzata delle variabili ambiente
+
+### 🚀 **Vantaggi dell'Architettura Unificata:**
+- 🔧 **Gestione semplificata**: Un solo comando per tutti i servizi
+- 🌐 **Networking ottimizzato**: Comunicazione interna sicura
+- 📈 **Scaling migliorato**: Dipendenze e health check centralizzati
+- 🔒 **Sicurezza**: Ridotte superfici di attacco
 
 ## 🛠️ Gestione con Script
 
@@ -239,6 +258,36 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 # Mostra aiuto
 .\manage.ps1 help
 ```
+
+## 🔧 **Gestione Unificata dei Servizi**
+
+⚡ **Con l'architettura unificata, tutti i servizi vengono gestiti insieme:**
+
+```bash
+# ✅ NUOVO MODO - Gestione unificata
+./manage.sh start              # Avvia TUTTI i servizi
+./manage.sh stop               # Ferma TUTTI i servizi  
+./manage.sh status             # Stato di TUTTI i servizi
+./manage.sh logs traefik       # Log di un servizio specifico
+
+# ❌ VECCHIO MODO - Non più necessario
+cd dyndns && docker compose up     # Non più usato
+cd immich && docker compose up     # Non più usato
+cd nginx && docker compose up      # Non più usato
+```
+
+### 🎯 **Servizi Disponibili per Logs/Gestione:**
+- `traefik` - Reverse proxy
+- `portainer` - Gestione container
+- `heimdall` - Dashboard servizi  
+- `uptime-kuma` - Monitoraggio
+- `watchtower` - Aggiornamenti automatici
+- `pihole` - DNS e ad-blocking
+- `vaultwarden` - Password manager
+- `homer` - Dashboard personalizzabile
+- `cloudflare-ddns` - Aggiornamento DNS
+- `immich-server`, `immich-db`, `immich-redis`, `immich-ml` - Stack foto
+- `nginx-proxy-manager` - Gestione proxy web
 
 ### 📋 Gestione Manuale (Docker Compose)
 Se preferisci usare Docker Compose direttamente:
@@ -437,6 +486,21 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 - **DNS locale**: Configura `*.local` nel tuo router o file hosts
 - **Cloudflare**: Token API richiesto per DNS dinamico
 - **Backup**: Implementa una strategia di backup per i dati critici
+
+## 🔄 Migrazione da Versioni Precedenti
+
+Se stai aggiornando da una versione precedente con cartelle separate:
+
+1. **Leggi la guida**: Consulta `MIGRATION.md` per istruzioni dettagliate
+2. **Backup dati**: Esegui backup di tutte le configurazioni
+3. **Nuova installazione**: Usa il nuovo setup unificato
+4. **Ripristino dati**: Importa i dati salvati nei nuovi volumi
+
+## 📚 Documentazione Aggiuntiva
+
+- 📄 **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**: Risoluzione problemi comuni
+- 📋 **[MIGRATION.md](MIGRATION.md)**: Guida migrazione versioni
+- 📝 **[CHANGELOG.md](CHANGELOG.md)**: Cronologia modifiche
 
 ## 🤝 Contributi
 
