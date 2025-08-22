@@ -60,6 +60,178 @@ function Write-Header {
     Write-Host "================================" -ForegroundColor $Purple
 }
 
+# ================================
+# DOCKER INSTALLATION FUNCTIONS
+# ================================
+
+function Test-Docker {
+    try {
+        $null = Get-Command docker -ErrorAction Stop
+        $dockerInfo = docker info 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            return $true
+        } else {
+            Write-Error "Docker is installed but not running!"
+            Write-Info "Please start Docker Desktop and try again."
+            exit 1
+        }
+    } catch {
+        return $false
+    }
+}
+
+function Test-DockerCompose {
+    try {
+        $null = Get-Command docker -ErrorAction Stop
+        
+        # Test docker compose (new syntax)
+        $composeTest = docker compose version 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            return $true
+        }
+        
+        # Test docker-compose (legacy)
+        $null = Get-Command docker-compose -ErrorAction Stop
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Install-DockerDesktop {
+    Write-Header "DOCKER INSTALLATION"
+    Write-Info "Installing Docker Desktop for Windows..."
+    
+    # Check if Chocolatey is available
+    try {
+        $null = Get-Command choco -ErrorAction Stop
+        Write-Info "Using Chocolatey to install Docker Desktop..."
+        
+        Start-Process -FilePath "choco" -ArgumentList "install", "docker-desktop", "-y" -Wait -Verb RunAs
+        
+        Write-Success "Docker Desktop installed via Chocolatey!"
+        Write-Info "Please start Docker Desktop from Start Menu."
+        
+        return $true
+    } catch {
+        Write-Warning "Chocolatey not found. Using manual installation..."
+    }
+    
+    # Check if winget is available (Windows 10 version 1809+)
+    try {
+        $null = Get-Command winget -ErrorAction Stop
+        Write-Info "Using winget to install Docker Desktop..."
+        
+        winget install Docker.DockerDesktop
+        
+        Write-Success "Docker Desktop installed via winget!"
+        Write-Info "Please start Docker Desktop from Start Menu."
+        
+        return $true
+    } catch {
+        Write-Warning "winget not found. Manual installation required."
+    }
+    
+    # Manual download instructions
+    Write-Warning "Automatic installation failed. Please install Docker Desktop manually:"
+    Write-Info "1. Go to https://www.docker.com/products/docker-desktop"
+    Write-Info "2. Download Docker Desktop for Windows"
+    Write-Info "3. Run the installer as Administrator"
+    Write-Info "4. Restart your computer if prompted"
+    Write-Info "5. Start Docker Desktop and complete setup"
+    
+    $response = Read-Host "Press 'y' when Docker Desktop is installed and running, or 'n' to exit"
+    
+    if ($response -eq 'y' -or $response -eq 'Y') {
+        return $true
+    } else {
+        return $false
+    }
+}
+
+function Test-AdminRights {
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Ensure-Docker {
+    if (-not (Test-Docker)) {
+        Write-Warning "Docker is not installed or not running!"
+        
+        $response = Read-Host "Would you like to install Docker Desktop automatically? (y/n)"
+        
+        if ($response -eq 'y' -or $response -eq 'Y') {
+            # Check if running as administrator for some installation methods
+            if (-not (Test-AdminRights)) {
+                Write-Warning "Some installation methods require administrator privileges."
+                Write-Info "Consider running PowerShell as Administrator for better results."
+            }
+            
+            $installResult = Install-DockerDesktop
+            
+            if ($installResult) {
+                Write-Info "Waiting for Docker to start..."
+                
+                # Wait for Docker to start (max 2 minutes)
+                $timeout = 120
+                $elapsed = 0
+                
+                while ($elapsed -lt $timeout) {
+                    Start-Sleep -Seconds 5
+                    $elapsed += 5
+                    
+                    if (Test-Docker) {
+                        Write-Success "Docker is now installed and running!"
+                        break
+                    }
+                    
+                    Write-Info "Still waiting for Docker to start... ($elapsed/$timeout seconds)"
+                }
+                
+                if ($elapsed -ge $timeout) {
+                    Write-Error "Docker installation completed but Docker is not running."
+                    Write-Info "Please start Docker Desktop manually and try again."
+                    exit 1
+                }
+            } else {
+                Write-Error "Docker installation failed or was cancelled."
+                Write-Info "Please install Docker Desktop manually: https://docs.docker.com/desktop/install/windows-install/"
+                exit 1
+            }
+        } else {
+            Write-Error "Docker is required to run this homelab."
+            Write-Info "Please install Docker Desktop manually: https://docs.docker.com/desktop/install/windows-install/"
+            exit 1
+        }
+    }
+    
+    if (-not (Test-DockerCompose)) {
+        Write-Error "Docker Compose is not available!"
+        Write-Info "Docker Compose should be included with Docker Desktop. Please reinstall Docker Desktop."
+        exit 1
+    }
+    
+    Write-Success "Docker and Docker Compose are ready!"
+}
+
+function Write-Error {
+    param([string]$Message)
+    Write-Host "[ERROR] $Message" -ForegroundColor $Red
+}
+
+function Write-Error {
+    param([string]$Message)
+    Write-Host "[ERROR] $Message" -ForegroundColor $Red
+}
+
+function Write-Header {
+    param([string]$Message)
+    Write-Host "================================" -ForegroundColor $Purple
+    Write-Host $Message -ForegroundColor $Purple
+    Write-Host "================================" -ForegroundColor $Purple
+}
+
 function Test-Requirements {
     Write-Info "Checking requirements..."
     
@@ -319,6 +491,9 @@ function Show-Help {
 # ================================
 
 Set-Location $ScriptDir
+
+# Ensure Docker is installed and running
+Ensure-Docker
 
 switch ($Command.ToLower()) {
     "start" {

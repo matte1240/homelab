@@ -29,6 +29,186 @@ readonly IMMICH_SETUP_SCRIPT="${SCRIPT_DIR}/immich/setup.sh"
 # UTILITY FUNCTIONS
 # ================================
 
+# Check if Docker is installed
+check_docker() {
+    if ! command -v docker &> /dev/null; then
+        return 1
+    fi
+    
+    if ! docker info &> /dev/null; then
+        log_error "Docker is installed but not running!"
+        log_info "Please start Docker service and try again."
+        exit 1
+    fi
+    
+    return 0
+}
+
+# Check if Docker Compose is installed
+check_docker_compose() {
+    if ! command -v docker &> /dev/null; then
+        return 1
+    fi
+    
+    # Check for docker compose (new) or docker-compose (legacy)
+    if ! docker compose version &> /dev/null && ! command -v docker-compose &> /dev/null; then
+        return 1
+    fi
+    
+    return 0
+}
+
+# Install Docker on Ubuntu/Debian
+install_docker_ubuntu() {
+    log_info "Installing Docker on Ubuntu/Debian..."
+    
+    # Update package index
+    sudo apt-get update
+    
+    # Install prerequisites
+    sudo apt-get install -y \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release
+    
+    # Add Docker's official GPG key
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    
+    # Add Docker repository
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    # Update package index again
+    sudo apt-get update
+    
+    # Install Docker Engine
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    
+    # Add current user to docker group
+    sudo usermod -aG docker $USER
+    
+    # Start and enable Docker service
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    
+    log_success "Docker installed successfully!"
+    log_warning "Please log out and log back in for group changes to take effect."
+    log_info "Alternatively, run: newgrp docker"
+}
+
+# Install Docker on CentOS/RHEL/Fedora
+install_docker_redhat() {
+    log_info "Installing Docker on CentOS/RHEL/Fedora..."
+    
+    # Remove old versions
+    sudo yum remove -y docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine
+    
+    # Install yum-utils
+    sudo yum install -y yum-utils
+    
+    # Add Docker repository
+    sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    
+    # Install Docker Engine
+    sudo yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    
+    # Add current user to docker group
+    sudo usermod -aG docker $USER
+    
+    # Start and enable Docker service
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    
+    log_success "Docker installed successfully!"
+    log_warning "Please log out and log back in for group changes to take effect."
+}
+
+# Install Docker on macOS
+install_docker_macos() {
+    log_info "Installing Docker on macOS..."
+    
+    if command -v brew &> /dev/null; then
+        log_info "Using Homebrew to install Docker Desktop..."
+        brew install --cask docker
+        log_success "Docker Desktop installed via Homebrew!"
+        log_info "Please start Docker Desktop from Applications folder."
+    else
+        log_warning "Homebrew not found. Please install Docker Desktop manually:"
+        log_info "1. Go to https://www.docker.com/products/docker-desktop"
+        log_info "2. Download Docker Desktop for Mac"
+        log_info "3. Install and start Docker Desktop"
+        exit 1
+    fi
+}
+
+# Auto-detect OS and install Docker
+install_docker() {
+    log_header "DOCKER INSTALLATION"
+    
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux
+        if [[ -f /etc/debian_version ]]; then
+            # Debian/Ubuntu
+            install_docker_ubuntu
+        elif [[ -f /etc/redhat-release ]]; then
+            # CentOS/RHEL/Fedora
+            install_docker_redhat
+        else
+            log_error "Unsupported Linux distribution!"
+            log_info "Please install Docker manually: https://docs.docker.com/engine/install/"
+            exit 1
+        fi
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        install_docker_macos
+    else
+        log_error "Unsupported operating system: $OSTYPE"
+        log_info "Please install Docker manually: https://docs.docker.com/get-docker/"
+        exit 1
+    fi
+}
+
+# Check Docker installation and offer to install if missing
+ensure_docker() {
+    if ! check_docker; then
+        log_warning "Docker is not installed or not running!"
+        
+        read -p "Would you like to install Docker automatically? (y/n): " -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            install_docker
+            
+            # Check again after installation
+            log_info "Checking Docker installation..."
+            sleep 2
+            
+            if check_docker; then
+                log_success "Docker is now installed and running!"
+            else
+                log_error "Docker installation failed or Docker is not running."
+                log_info "Please start Docker manually and try again."
+                exit 1
+            fi
+        else
+            log_error "Docker is required to run this homelab."
+            log_info "Please install Docker manually: https://docs.docker.com/get-docker/"
+            exit 1
+        fi
+    fi
+    
+    if ! check_docker_compose; then
+        log_error "Docker Compose is not available!"
+        log_info "Docker Compose should be included with Docker. Please reinstall Docker."
+        exit 1
+    fi
+    
+    log_success "Docker and Docker Compose are ready!"
+}
+
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
@@ -359,6 +539,9 @@ EOF
 # ================================
 
 main() {
+    # Ensure Docker is installed and running
+    ensure_docker
+    
     case "${1:-}" in
         "start")
             check_requirements
