@@ -1,0 +1,49 @@
+# ================================
+# DOCKER COMPOSE OVERRIDE
+# ================================
+# This file is used for development/testing
+# It extends the main compose.yml file
+
+version: '3.8'
+
+services:
+  # Override Traefik for development
+  traefik:
+    command:
+      - --log.level=DEBUG
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --providers.file.watch=true
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    ports:
+      - "8080:8080"  # Dashboard
+  
+  # Override Pi-hole for development
+  pihole:
+    environment:
+      - WEBPASSWORD=admin123  # Easy password for dev
+      - SERVERIP=127.0.0.1    # Local development
+    ports:
+      - "8053:53/tcp"
+      - "8053:53/udp"
+      - "8081:80"             # Direct access for dev
+  
+  # Add development tools
+  portainer-agent:
+    image: portainer/agent:latest
+    container_name: portainer-agent-dev
+    ports:
+      - "9001:9001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/volumes:/var/lib/docker/volumes
+    restart: unless-stopped
+    networks:
+      - proxy

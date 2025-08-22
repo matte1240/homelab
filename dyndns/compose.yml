@@ -20,9 +20,9 @@ services:
     security_opt: [no-new-privileges:true]
     # Another protection to restrict superuser privileges (optional but recommended)
     environment:
-      - CLOUDFLARE_API_TOKEN=ZP6UrStZW5_OHTcAmZ4pQA4bpjhzPjr6PQWUDHkx
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
         # Your Cloudflare API token
-      - DOMAINS=mbaracetti.work
+      - DOMAINS=${DOMAINS:-mbaracetti.work}
         # Your domains (separated by commas)
       - PROXIED=true
         # Tell Cloudflare to cache webpages and hide your IP (optional)

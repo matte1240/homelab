@@ -1,0 +1,63 @@
+# =================================
+# SECURITY & ENVIRONMENT FILES
+# =================================
+.env
+.env.local
+.env.*.local
+
+# =================================
+# RUNTIME DATA & VOLUMES
+# =================================
+# Base services data
+base-services/traefik/
+base-services/heimdall/
+base-services/uptime-kuma/
+base-services/pihole/
+base-services/vaultwarden/
+base-services/homer/
+
+# Nginx data
+nginx/data/
+nginx/letsencrypt/
+
+# Immich data
+immich/library/
+immich/pgdata/
+
+# =================================
+# LOG FILES
+# =================================
+*.log
+logs/
+
+# =================================
+# BACKUP FILES
+# =================================
+*.backup
+backups/
+
+# =================================
+# TEMPORARY FILES
+# =================================
+.tmp/
+tmp/
+
+# =================================
+# OS GENERATED FILES
+# =================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# =================================
+# EDITOR FILES
+# =================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

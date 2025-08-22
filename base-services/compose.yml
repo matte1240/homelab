@@ -14,10 +14,15 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/data:/etc/traefik
     environment:
-      - TZ=Europe/Rome
+      - TZ=${TZ:-Europe/Rome}
     networks:
       - proxy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik.entrypoints=http"
@@ -111,9 +116,9 @@ services:
       - "53:53/tcp"
       - "53:53/udp"
     environment:
-      - TZ=Europe/Rome
-      - WEBPASSWORD=your_password_here # Change this!
-      - SERVERIP=192.168.1.x # Change to your server IP
+      - TZ=${TZ:-Europe/Rome}
+      - WEBPASSWORD=${PIHOLE_WEBPASSWORD}
+      - SERVERIP=${PIHOLE_SERVERIP}
     volumes:
       - ./pihole/etc-pihole:/etc/pihole
       - ./pihole/etc-dnsmasq.d:/etc/dnsmasq.d
