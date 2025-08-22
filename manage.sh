@@ -86,10 +86,11 @@ check_env_file() {
 }
 
 check_immich_setup() {
-    if [[ ! -f "${SCRIPT_DIR}/immich/library/.keep" ]]; then
+    local immich_lib_dir="${SCRIPT_DIR}/base-services/immich"
+    if [[ ! -f "${immich_lib_dir}/.keep" ]]; then
         log_info "Setting up Immich for first time..."
-        mkdir -p "${SCRIPT_DIR}/immich/library"
-        touch "${SCRIPT_DIR}/immich/library/.keep"
+        mkdir -p "$immich_lib_dir"
+        touch "${immich_lib_dir}/.keep"
         
         # Generate JWT secret if not provided
         if [[ -z "${IMMICH_JWT_SECRET}" ]] || [[ "${IMMICH_JWT_SECRET}" == "your_jwt_secret_here_min_32_chars" ]]; then
@@ -267,7 +268,6 @@ backup() {
     # Backup configurations
     log_info "Backing up configurations..."
     cp -r "${SCRIPT_DIR}/base-services" "$backup_dir/"
-    cp -r "${SCRIPT_DIR}/immich" "$backup_dir/"
     cp "$ENV_FILE" "$backup_dir/" 2>/dev/null || true
     
     # Backup Docker volumes

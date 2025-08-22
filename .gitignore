@@ -23,10 +23,6 @@ base-services/immich/
 !base-services/traefik/*.yml
 !base-services/traefik/*.yaml
 
-# Immich legacy directory (keep setup.sh)
-immich/library/
-immich/pgdata/
-
 # =================================
 # LOG FILES
 # =================================

@@ -152,7 +152,7 @@ function Stop-Service {
 }
 
 function Test-ImmichSetup {
-    $ImmichLibrary = Join-Path $ScriptDir "immich\library"
+    $ImmichLibrary = Join-Path $ScriptDir "base-services\immich"
     $KeepFile = Join-Path $ImmichLibrary ".keep"
     
     if (-not (Test-Path $KeepFile)) {
