@@ -1,0 +1,8 @@
+# Environment variables
+.env
+
+# Upload directory
+library/
+
+# Volumes
+pgdata/
