@@ -169,9 +169,208 @@ services:
       - "traefik.http.routers.homer.rule=Host(`home.local`)"
       - "traefik.http.services.homer.loadbalancer.server.port=8080"
 
+  # ================================
+  # DYNAMIC DNS SERVICES
+  # ================================
+  
+  # Cloudflare Dynamic DNS
+  cloudflare-ddns:
+    image: favonia/cloudflare-ddns:latest
+    container_name: cloudflare-ddns
+    network_mode: host
+    restart: always
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [all]
+    security_opt: [no-new-privileges:true]
+    environment:
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+      - DOMAINS=${DOMAINS:-mbaracetti.work}
+      - PROXIED=true
+      - IP6_PROVIDER=none
+    healthcheck:
+      test: ["CMD", "sh", "-c", "test -f /tmp/cloudflare-ddns.pid"]
+      interval: 300s
+      timeout: 10s
+      retries: 3
+
+  # ================================
+  # MEDIA SERVICES - IMMICH
+  # ================================
+  
+  # Immich Server
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:release
+    container_name: immich-server
+    command: ["start.sh", "immich"]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ${IMMICH_UPLOAD_LOCATION:-./immich/library}:/usr/src/app/upload
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=${TZ:-Europe/Rome}
+      - DB_HOSTNAME=immich-postgres
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=${IMMICH_DB_PASSWORD:-postgres}
+      - DB_DATABASE_NAME=immich
+      - REDIS_HOSTNAME=immich-redis
+      - JWT_SECRET=${IMMICH_JWT_SECRET}
+      - NODE_ENV=production
+    depends_on:
+      immich-redis:
+        condition: service_healthy
+      immich-postgres:
+        condition: service_healthy
+    networks:
+      - proxy
+      - immich
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/server-info/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.immich.entrypoints=http"
+      - "traefik.http.routers.immich.rule=Host(`immich.local`)"
+      - "traefik.http.services.immich.loadbalancer.server.port=3001"
+
+  # Immich Microservices
+  immich-microservices:
+    image: ghcr.io/immich-app/immich-server:release
+    container_name: immich-microservices
+    command: ["start.sh", "microservices"]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ${IMMICH_UPLOAD_LOCATION:-./immich/library}:/usr/src/app/upload
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=${TZ:-Europe/Rome}
+      - DB_HOSTNAME=immich-postgres
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=${IMMICH_DB_PASSWORD:-postgres}
+      - DB_DATABASE_NAME=immich
+      - REDIS_HOSTNAME=immich-redis
+      - JWT_SECRET=${IMMICH_JWT_SECRET}
+      - NODE_ENV=production
+    depends_on:
+      immich-redis:
+        condition: service_healthy
+      immich-postgres:
+        condition: service_healthy
+    networks:
+      - immich
+    restart: unless-stopped
+
+  # Immich Machine Learning
+  immich-machine-learning:
+    image: ghcr.io/immich-app/immich-machine-learning:release
+    container_name: immich-machine-learning
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ${IMMICH_UPLOAD_LOCATION:-./immich/library}:/usr/src/app/upload
+      - immich-model-cache:/cache
+    environment:
+      - TZ=${TZ:-Europe/Rome}
+      - NODE_ENV=production
+    networks:
+      - immich
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:3003/ping')"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  # Immich Redis
+  immich-redis:
+    image: redis:6.2-alpine
+    container_name: immich-redis
+    security_opt:
+      - no-new-privileges:true
+    command: redis-server --appendonly yes
+    volumes:
+      - immich-redis-data:/data
+    environment:
+      - TZ=${TZ:-Europe/Rome}
+    networks:
+      - immich
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Immich PostgreSQL
+  immich-postgres:
+    image: postgres:14-alpine
+    container_name: immich-postgres
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - immich-postgres-data:/var/lib/postgresql/data
+    environment:
+      - TZ=${TZ:-Europe/Rome}
+      - POSTGRES_PASSWORD=${IMMICH_DB_PASSWORD:-postgres}
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=immich
+      - POSTGRES_INITDB_ARGS=--data-checksums
+    networks:
+      - immich
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d immich"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ================================
+  # NGINX PROXY MANAGER
+  # ================================
+  
+  # Nginx Proxy Manager
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "8080:80"   # HTTP (alternative port to avoid conflicts)
+      - "8443:443"  # HTTPS (alternative port)
+      - "8181:81"   # Admin UI
+    volumes:
+      - ./nginx/data:/data
+      - ./nginx/letsencrypt:/etc/letsencrypt
+    environment:
+      - TZ=${TZ:-Europe/Rome}
+    networks:
+      - proxy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nginx-pm.entrypoints=http"
+      - "traefik.http.routers.nginx-pm.rule=Host(`nginx.local`)"
+      - "traefik.http.services.nginx-pm.loadbalancer.server.port=81"
+
 networks:
   proxy:
     driver: bridge
+  immich:
+    driver: bridge
+    internal: true  # Internal network for Immich services
 
 volumes:
   portainer_data:
+  immich-postgres-data:
+  immich-redis-data:
+  immich-model-cache:

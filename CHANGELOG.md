@@ -15,12 +15,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Development override configurations
 - Comprehensive troubleshooting guide
 - Security hardening for all services
+- Migration guide for unified Docker Compose
 
 ### Changed
+- **BREAKING**: Consolidated all services into single Docker Compose file
 - Moved sensitive data to environment variables
 - Improved Docker Compose configurations
 - Enhanced security with proper file permissions
 - Updated documentation with detailed setup guide
+- Simplified project structure
+
+### Removed
+- `dyndns/` directory (integrated into base-services)
+- `nginx/` directory (integrated into base-services)  
+- `immich/compose.yml` (integrated into base-services)
+- Legacy configuration files and directories
 
 ### Security
 - Removed hardcoded passwords and tokens

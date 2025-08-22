@@ -20,8 +20,10 @@ readonly NC='\033[0m' # No Color
 
 # Configuration
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SERVICES=("base-services" "dyndns" "immich" "nginx")
+readonly MAIN_COMPOSE_DIR="${SCRIPT_DIR}/base-services"
+readonly COMPOSE_FILE="${MAIN_COMPOSE_DIR}/compose.yml"
 readonly ENV_FILE="${SCRIPT_DIR}/.env"
+readonly IMMICH_SETUP_SCRIPT="${SCRIPT_DIR}/immich/setup.sh"
 
 # ================================
 # UTILITY FUNCTIONS
@@ -83,58 +85,43 @@ check_env_file() {
     return 0
 }
 
+check_immich_setup() {
+    if [[ ! -f "${SCRIPT_DIR}/immich/library/.keep" ]]; then
+        log_info "Setting up Immich for first time..."
+        mkdir -p "${SCRIPT_DIR}/immich/library"
+        touch "${SCRIPT_DIR}/immich/library/.keep"
+        
+        # Generate JWT secret if not provided
+        if [[ -z "${IMMICH_JWT_SECRET}" ]] || [[ "${IMMICH_JWT_SECRET}" == "your_jwt_secret_here_min_32_chars" ]]; then
+            log_warning "Generating random JWT secret for Immich..."
+            local jwt_secret
+            jwt_secret=$(openssl rand -base64 32)
+            
+            # Update .env file if it exists
+            if [[ -f "$ENV_FILE" ]]; then
+                if grep -q "IMMICH_JWT_SECRET=" "$ENV_FILE"; then
+                    sed -i "s/IMMICH_JWT_SECRET=.*/IMMICH_JWT_SECRET=${jwt_secret}/" "$ENV_FILE"
+                else
+                    echo "IMMICH_JWT_SECRET=${jwt_secret}" >> "$ENV_FILE"
+                fi
+                log_success "JWT secret updated in .env file"
+            fi
+        fi
+    fi
+}
+
 # ================================
 # SERVICE MANAGEMENT
 # ================================
 
-start_service() {
-    local service="$1"
-    log_info "Starting $service..."
-    
-    if [[ -f "${SCRIPT_DIR}/${service}/compose.yml" ]]; then
-        cd "${SCRIPT_DIR}/${service}"
-        docker-compose --env-file "$ENV_FILE" up -d
-        log_success "$service started successfully!"
-    else
-        log_error "Service $service not found!"
-        return 1
-    fi
-}
-
-stop_service() {
-    local service="$1"
-    log_info "Stopping $service..."
-    
-    if [[ -f "${SCRIPT_DIR}/${service}/compose.yml" ]]; then
-        cd "${SCRIPT_DIR}/${service}"
-        docker-compose down
-        log_success "$service stopped successfully!"
-    else
-        log_error "Service $service not found!"
-        return 1
-    fi
-}
-
-restart_service() {
-    local service="$1"
-    stop_service "$service"
-    start_service "$service"
-}
-
 start_all() {
     log_header "STARTING ALL SERVICES"
     
-    for service in "${SERVICES[@]}"; do
-        if [[ "$service" == "immich" ]]; then
-            # Special handling for Immich
-            log_info "Setting up Immich..."
-            cd "${SCRIPT_DIR}/immich"
-            if [[ -x "./setup.sh" ]]; then
-                ./setup.sh
-            fi
-        fi
-        start_service "$service"
-    done
+    check_immich_setup
+    
+    log_info "Starting all services..."
+    cd "$MAIN_COMPOSE_DIR"
+    docker-compose --env-file "$ENV_FILE" up -d
     
     log_success "All services started!"
     show_status
@@ -143,11 +130,42 @@ start_all() {
 stop_all() {
     log_header "STOPPING ALL SERVICES"
     
-    for service in "${SERVICES[@]}"; do
-        stop_service "$service"
-    done
+    log_info "Stopping all services..."
+    cd "$MAIN_COMPOSE_DIR"
+    docker-compose down
     
     log_success "All services stopped!"
+}
+
+restart_all() {
+    log_header "RESTARTING ALL SERVICES"
+    stop_all
+    sleep 2
+    start_all
+}
+
+start_service() {
+    local service="$1"
+    log_info "Starting $service..."
+    
+    cd "$MAIN_COMPOSE_DIR"
+    docker-compose --env-file "$ENV_FILE" up -d "$service"
+    log_success "$service started successfully!"
+}
+
+stop_service() {
+    local service="$1"
+    log_info "Stopping $service..."
+    
+    cd "$MAIN_COMPOSE_DIR"
+    docker-compose stop "$service"
+    log_success "$service stopped successfully!"
+}
+
+restart_service() {
+    local service="$1"
+    stop_service "$service"
+    start_service "$service"
 }
 
 # ================================
@@ -157,51 +175,67 @@ stop_all() {
 show_status() {
     log_header "SERVICE STATUS"
     
-    printf "%-20s %-15s %-10s\n" "SERVICE" "STATUS" "CONTAINERS"
-    printf "%-20s %-15s %-10s\n" "-------" "------" "----------"
+    printf "%-25s %-15s %-10s\n" "SERVICE" "STATUS" "HEALTH"
+    printf "%-25s %-15s %-10s\n" "-------" "------" "------"
     
-    for service in "${SERVICES[@]}"; do
-        if [[ -f "${SCRIPT_DIR}/${service}/compose.yml" ]]; then
-            cd "${SCRIPT_DIR}/${service}"
-            local container_count
-            container_count=$(docker-compose ps -q | wc -l)
-            local running_count
-            running_count=$(docker-compose ps -q | xargs docker inspect -f '{{.State.Status}}' 2>/dev/null | grep -c "running" || echo "0")
+    cd "$MAIN_COMPOSE_DIR"
+    
+    # Get list of services from compose file
+    local services
+    services=$(docker-compose config --services)
+    
+    for service in $services; do
+        local container_name
+        container_name=$(docker-compose ps -q "$service" 2>/dev/null)
+        
+        if [[ -n "$container_name" ]]; then
+            local status
+            local health
+            status=$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null || echo "unknown")
+            health=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-check{{end}}' "$container_name" 2>/dev/null || echo "unknown")
             
-            if [[ "$running_count" -eq "$container_count" ]] && [[ "$container_count" -gt 0 ]]; then
-                printf "%-20s ${GREEN}%-15s${NC} %-10s\n" "$service" "RUNNING" "$running_count/$container_count"
-            elif [[ "$running_count" -gt 0 ]]; then
-                printf "%-20s ${YELLOW}%-15s${NC} %-10s\n" "$service" "PARTIAL" "$running_count/$container_count"
-            else
-                printf "%-20s ${RED}%-15s${NC} %-10s\n" "$service" "STOPPED" "$running_count/$container_count"
-            fi
+            case "$status" in
+                "running")
+                    if [[ "$health" == "healthy" ]]; then
+                        printf "%-25s ${GREEN}%-15s${NC} ${GREEN}%-10s${NC}\n" "$service" "RUNNING" "$health"
+                    elif [[ "$health" == "unhealthy" ]]; then
+                        printf "%-25s ${GREEN}%-15s${NC} ${RED}%-10s${NC}\n" "$service" "RUNNING" "$health"
+                    else
+                        printf "%-25s ${GREEN}%-15s${NC} ${YELLOW}%-10s${NC}\n" "$service" "RUNNING" "$health"
+                    fi
+                    ;;
+                "exited")
+                    printf "%-25s ${RED}%-15s${NC} ${RED}%-10s${NC}\n" "$service" "STOPPED" "n/a"
+                    ;;
+                *)
+                    printf "%-25s ${YELLOW}%-15s${NC} ${YELLOW}%-10s${NC}\n" "$service" "$status" "$health"
+                    ;;
+            esac
+        else
+            printf "%-25s ${RED}%-15s${NC} ${RED}%-10s${NC}\n" "$service" "NOT FOUND" "n/a"
         fi
     done
     
     echo
     log_info "Access URLs:"
-    echo "  🎛️  Portainer:    http://portainer.local"
-    echo "  🎯  Heimdall:     http://heimdall.local"
-    echo "  ⏱️  Uptime Kuma:  http://uptime.local"
-    echo "  🛡️  Pi-hole:      http://pihole.local"
-    echo "  🔐  Vaultwarden:  http://vault.local"
-    echo "  🏠  Homer:        http://home.local"
-    echo "  📸  Immich:       http://localhost:2283"
-    echo "  🌐  Traefik:      http://traefik.local"
+    echo "  🎛️  Portainer:      http://portainer.local"
+    echo "  🎯  Heimdall:       http://heimdall.local"
+    echo "  ⏱️  Uptime Kuma:    http://uptime.local"
+    echo "  🛡️  Pi-hole:        http://pihole.local"
+    echo "  🔐  Vaultwarden:    http://vault.local"
+    echo "  🏠  Homer:          http://home.local"
+    echo "  📸  Immich:         http://immich.local"
+    echo "  🌐  Traefik:        http://traefik.local"
+    echo "  🔧  Nginx PM:       http://nginx.local"
 }
 
 show_logs() {
     local service="$1"
     local lines="${2:-50}"
     
-    if [[ -f "${SCRIPT_DIR}/${service}/compose.yml" ]]; then
-        log_info "Showing last $lines lines for $service..."
-        cd "${SCRIPT_DIR}/${service}"
-        docker-compose logs --tail="$lines" -f
-    else
-        log_error "Service $service not found!"
-        return 1
-    fi
+    log_info "Showing last $lines lines for $service..."
+    cd "$MAIN_COMPOSE_DIR"
+    docker-compose logs --tail="$lines" -f "$service"
 }
 
 # ================================
@@ -211,14 +245,45 @@ show_logs() {
 update_all() {
     log_header "UPDATING ALL SERVICES"
     
-    for service in "${SERVICES[@]}"; do
-        log_info "Updating $service..."
-        cd "${SCRIPT_DIR}/${service}"
-        docker-compose pull
-        docker-compose up -d
-    done
+    log_info "Pulling latest images..."
+    cd "$MAIN_COMPOSE_DIR"
+    docker-compose pull
+    
+    log_info "Recreating services with new images..."
+    docker-compose --env-file "$ENV_FILE" up -d
     
     log_success "All services updated!"
+    show_status
+}
+
+backup() {
+    local backup_dir="${SCRIPT_DIR}/backups/$(date +%Y%m%d_%H%M%S)"
+    
+    log_header "CREATING BACKUP"
+    log_info "Backup directory: $backup_dir"
+    
+    mkdir -p "$backup_dir"
+    
+    # Backup configurations
+    log_info "Backing up configurations..."
+    cp -r "${SCRIPT_DIR}/base-services" "$backup_dir/"
+    cp -r "${SCRIPT_DIR}/immich" "$backup_dir/"
+    cp "$ENV_FILE" "$backup_dir/" 2>/dev/null || true
+    
+    # Backup Docker volumes
+    log_info "Backing up Docker volumes..."
+    cd "$MAIN_COMPOSE_DIR"
+    
+    # Backup Portainer data
+    docker run --rm -v "$(pwd)":/backup -v base-services_portainer_data:/data alpine tar czf /backup/"$backup_dir"/portainer_data.tar.gz -C /data . 2>/dev/null || true
+    
+    # Backup Immich PostgreSQL
+    docker-compose exec -T immich-postgres pg_dump -U postgres immich > "$backup_dir/immich_database.sql" 2>/dev/null || true
+    
+    # Backup Pi-hole config
+    docker run --rm -v "$(pwd)":/backup -v "$(pwd)"/pihole:/data alpine tar czf /backup/"$backup_dir"/pihole_config.tar.gz -C /data . 2>/dev/null || true
+    
+    log_success "Backup created: $backup_dir"
 }
 
 cleanup() {
@@ -237,29 +302,6 @@ cleanup() {
     docker network prune -f
     
     log_success "Cleanup completed!"
-}
-
-backup() {
-    local backup_dir="${SCRIPT_DIR}/backups/$(date +%Y%m%d_%H%M%S)"
-    
-    log_header "CREATING BACKUP"
-    log_info "Backup directory: $backup_dir"
-    
-    mkdir -p "$backup_dir"
-    
-    # Backup configurations
-    for service in "${SERVICES[@]}"; do
-        if [[ -d "${SCRIPT_DIR}/${service}" ]]; then
-            log_info "Backing up $service configuration..."
-            cp -r "${SCRIPT_DIR}/${service}" "$backup_dir/"
-        fi
-    done
-    
-    # Backup Docker volumes
-    log_info "Backing up Docker volumes..."
-    docker run --rm -v "$(pwd)":/backup -v portainer_data:/data alpine tar czf /backup/"$backup_dir"/portainer_data.tar.gz -C /data .
-    
-    log_success "Backup created: $backup_dir"
 }
 
 # ================================
@@ -285,15 +327,24 @@ ${YELLOW}COMMANDS:${NC}
     ${GREEN}help${NC}                Show this help message
 
 ${YELLOW}SERVICES:${NC}
-    • base-services  (Traefik, Portainer, Heimdall, etc.)
-    • dyndns         (Cloudflare DDNS)
-    • immich         (Photo backup)
-    • nginx          (Nginx Proxy Manager)
+    • traefik             (Reverse proxy)
+    • portainer           (Container management)
+    • heimdall            (Dashboard)
+    • uptime-kuma         (Uptime monitoring)
+    • watchtower          (Auto updates)
+    • pihole              (DNS & Ad blocking)
+    • vaultwarden         (Password manager)
+    • homer               (Custom dashboard)
+    • cloudflare-ddns     (Dynamic DNS)
+    • immich-server       (Photo backup server)
+    • immich-postgres     (Immich database)
+    • immich-redis        (Immich cache)
+    • nginx-proxy-manager (Nginx proxy manager)
 
 ${YELLOW}EXAMPLES:${NC}
     ./manage.sh start              # Start all services
-    ./manage.sh start base-services # Start only base services
-    ./manage.sh logs immich 100    # Show last 100 lines of Immich logs
+    ./manage.sh start traefik      # Start only Traefik
+    ./manage.sh logs immich-server 100  # Show last 100 lines of Immich logs
     ./manage.sh status             # Show status of all services
 
 ${YELLOW}REQUIREMENTS:${NC}
@@ -337,15 +388,14 @@ main() {
             if [[ -n "${2:-}" ]]; then
                 restart_service "$2"
             else
-                stop_all
-                start_all
+                restart_all
             fi
             ;;
         "status")
             show_status
             ;;
         "logs")
-            show_logs "${2:-base-services}" "${3:-50}"
+            show_logs "${2:-traefik}" "${3:-50}"
             ;;
         "update")
             check_requirements

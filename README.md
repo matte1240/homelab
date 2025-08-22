@@ -60,7 +60,9 @@ Questo repository contiene una completa configurazione homelab basata su Docker 
 
 ## 🔧 Servizi Disponibili
 
-### 🔄 Base Services (`base-services/`)
+### 🔄 Tutti i Servizi (Unificati in `base-services/`)
+
+Tutti i servizi sono ora consolidati in un unico file Docker Compose per una gestione semplificata:
 
 | Servizio | Porta | URL | Descrizione |
 |----------|-------|-----|-------------|
@@ -73,25 +75,17 @@ Questo repository contiene una completa configurazione homelab basata su Docker 
 | **Vaultwarden** | - | `vault.local` | 🔐 Password manager |
 | **Homer** | - | `home.local` | 🏠 Dashboard personalizzabile |
 
-### 🌍 Dynamic DNS (`dyndns/`)
+#### 🌍 Dynamic DNS
+| **Cloudflare DDNS** | - | - | 🌐 Aggiornamento automatico DNS |
 
-| Servizio | Descrizione |
-|----------|-------------|
-| **Cloudflare DDNS** | 🌐 Aggiornamento automatico DNS per `mbaracetti.work` |
+#### 📸 Media Services (Immich)
+| **Immich Server** | - | `immich.local` | 📱 Server backup foto e video |
+| **PostgreSQL** | - | - | 🗄️ Database per Immich |
+| **Redis** | - | - | ⚡ Cache in-memory |
+| **Machine Learning** | - | - | 🤖 AI per riconoscimento foto |
 
-### 📸 Media Services (`immich/`)
-
-| Servizio | Porta | Descrizione |
-|----------|-------|-------------|
-| **Immich** | 2283 | 📱 Soluzione self-hosted per backup foto e video |
-| **PostgreSQL** | - | 🗄️ Database per Immich |
-| **Redis** | - | ⚡ Cache in-memory |
-
-### 🌐 Proxy Management (`nginx/`)
-
-| Servizio | Porta | Descrizione |
-|----------|-------|-------------|
-| **Nginx Proxy Manager** | 80, 81, 443 | 🔧 Gestione proxy con UI web |
+#### 🌐 Proxy Management
+| **Nginx Proxy Manager** | 8080, 8443, 8181 | `nginx.local` | 🔧 Gestione proxy con UI web |
 
 ## 🚀 Quick Start
 
@@ -178,9 +172,13 @@ homelab/
 
 ## 🛠️ Gestione con Script
 
-Il progetto include uno script di gestione avanzato per semplificare le operazioni:
+Il progetto include script di gestione per semplificare le operazioni:
 
+### 🐧 Linux/Mac (Bash)
 ```bash
+# Rendi eseguibile lo script
+chmod +x manage.sh
+
 # Avvia tutti i servizi
 ./manage.sh start
 
@@ -191,7 +189,7 @@ Il progetto include uno script di gestione avanzato per semplificare le operazio
 ./manage.sh status
 
 # Visualizza i log
-./manage.sh logs immich 100
+./manage.sh logs immich-server 100
 
 # Aggiorna tutti i servizi
 ./manage.sh update
@@ -207,6 +205,57 @@ Il progetto include uno script di gestione avanzato per semplificare le operazio
 
 # Mostra aiuto
 ./manage.sh help
+```
+
+### 🪟 Windows (PowerShell)
+```powershell
+# Abilita esecuzione script (una sola volta)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# Avvia tutti i servizi
+.\manage.ps1 start
+
+# Avvia un servizio specifico
+.\manage.ps1 start traefik
+
+# Mostra lo stato di tutti i servizi
+.\manage.ps1 status
+
+# Visualizza i log
+.\manage.ps1 logs immich-server 100
+
+# Aggiorna tutti i servizi
+.\manage.ps1 update
+
+# Ferma tutti i servizi
+.\manage.ps1 stop
+
+# Crea backup delle configurazioni
+.\manage.ps1 backup
+
+# Pulizia del sistema Docker
+.\manage.ps1 cleanup
+
+# Mostra aiuto
+.\manage.ps1 help
+```
+
+### 📋 Gestione Manuale (Docker Compose)
+Se preferisci usare Docker Compose direttamente:
+```bash
+cd base-services
+
+# Avvia tutti i servizi
+docker-compose --env-file ../.env up -d
+
+# Mostra stato
+docker-compose ps
+
+# Visualizza log
+docker-compose logs -f traefik
+
+# Ferma tutti i servizi
+docker-compose down
 ```
 
 ## ⚙️ Configurazione
@@ -370,14 +419,14 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 #### Log Importanti
 
 ```bash
-# Log Traefik
-docker-compose -f base-services/compose.yml logs traefik
+# Log servizi principali
+./manage.sh logs traefik 50
 
 # Log Pi-hole
-docker-compose -f base-services/compose.yml logs pihole
+./manage.sh logs pihole 50
 
 # Log Immich
-docker-compose -f immich/compose.yml logs
+./manage.sh logs immich-server 50
 ```
 
 ---

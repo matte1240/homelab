@@ -6,21 +6,24 @@
 .env.*.local
 
 # =================================
-# RUNTIME DATA & VOLUMES
+# RUNTIME DATA & VOLUMES  
 # =================================
-# Base services data
-base-services/traefik/
+# Base services data (all services now unified here)
+base-services/traefik/data/
+base-services/traefik/logs/
 base-services/heimdall/
 base-services/uptime-kuma/
 base-services/pihole/
 base-services/vaultwarden/
 base-services/homer/
+base-services/nginx/
+base-services/immich/
 
-# Nginx data
-nginx/data/
-nginx/letsencrypt/
+# Allow Traefik config files
+!base-services/traefik/*.yml
+!base-services/traefik/*.yaml
 
-# Immich data
+# Immich legacy directory (keep setup.sh)
 immich/library/
 immich/pgdata/
 
