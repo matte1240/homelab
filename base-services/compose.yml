@@ -1,0 +1,172 @@
+services:
+  # Reverse Proxy
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Dashboard
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/data:/etc/traefik
+    environment:
+      - TZ=Europe/Rome
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.entrypoints=http"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.local`)"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+
+  # Container Management UI
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "9443:9443"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - portainer_data:/data
+    environment:
+      - TZ=Europe/Rome
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.entrypoints=http"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.local`)"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+
+  # Services Dashboard
+  heimdall:
+    image: lscr.io/linuxserver/heimdall:latest
+    container_name: heimdall
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./heimdall:/config
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Rome
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.heimdall.entrypoints=http"
+      - "traefik.http.routers.heimdall.rule=Host(`heimdall.local`)"
+      - "traefik.http.services.heimdall.loadbalancer.server.port=80"
+
+  # Uptime Monitoring
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./uptime-kuma:/app/data
+    environment:
+      - TZ=Europe/Rome
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.uptime.entrypoints=http"
+      - "traefik.http.routers.uptime.rule=Host(`uptime.local`)"
+      - "traefik.http.services.uptime.loadbalancer.server.port=3001"
+
+  # Automatic Container Updates
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TZ=Europe/Rome
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_SCHEDULE=0 0 4 * * * # Runs at 4 AM daily
+    restart: unless-stopped
+
+  # DNS and Ad Blocking
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+    environment:
+      - TZ=Europe/Rome
+      - WEBPASSWORD=your_password_here # Change this!
+      - SERVERIP=192.168.1.x # Change to your server IP
+    volumes:
+      - ./pihole/etc-pihole:/etc/pihole
+      - ./pihole/etc-dnsmasq.d:/etc/dnsmasq.d
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pihole.entrypoints=http"
+      - "traefik.http.routers.pihole.rule=Host(`pihole.local`)"
+      - "traefik.http.services.pihole.loadbalancer.server.port=80"
+
+  # Password Manager
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./vaultwarden:/data
+    environment:
+      - TZ=Europe/Rome
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vaultwarden.entrypoints=http"
+      - "traefik.http.routers.vaultwarden.rule=Host(`vault.local`)"
+      - "traefik.http.services.vaultwarden.loadbalancer.server.port=80"
+
+  # Custom Dashboard
+  homer:
+    image: b4bz/homer:latest
+    container_name: homer
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./homer:/www/assets
+    environment:
+      - TZ=Europe/Rome
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.homer.entrypoints=http"
+      - "traefik.http.routers.homer.rule=Host(`home.local`)"
+      - "traefik.http.services.homer.loadbalancer.server.port=8080"
+
+networks:
+  proxy:
+    driver: bridge
+
+volumes:
+  portainer_data:
