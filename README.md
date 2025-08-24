@@ -7,12 +7,35 @@
 
 > 🚀 Una completa infrastruttura homelab con servizi essenziali gestiti tramite Docker Compose
 
+## ⚡ Quick Install
+
+**One-line installation:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/matte1240/homelab/main/install.sh | bash
+```
+
+**Alternative with wget:**
+
+```bash
+wget -qO- https://raw.githubusercontent.com/matte1240/homelab/main/install.sh | bash
+```
+
+**Then run the setup wizard:**
+
+```bash
+cd ~/homelab
+./manage.sh setup
+./manage.sh start
+```
+
 ## 📋 Sommario
 
+- [⚡ Quick Install](#-quick-install)
 - [🎯 Panoramica](#-panoramica)
 - [🏗️ Architettura](#️-architettura)
 - [🔧 Servizi Disponibili](#-servizi-disponibili)
-- [🚀 Quick Start](#-quick-start)
+- [🚀 Installation Guide](#-installation-guide)
 - [📂 Struttura del Progetto](#-struttura-del-progetto)
 - [⚙️ Configurazione](#️-configurazione)
 - [🔒 Sicurezza](#-sicurezza)
@@ -87,29 +110,56 @@ Questo repository contiene una completa configurazione homelab basata su Docker 
 #### 🌐 Proxy Management
 | **Nginx Proxy Manager** | 8080, 8443, 8181 | `nginx.local` | 🔧 Gestione proxy con UI web |
 
-## 🚀 Quick Start
+## 🚀 Installation Guide
 
-### ⚡ Setup Interattivo (Raccomandato)
+### ⚡ Option 1: One-Line Install (Recommended)
 
-Per la configurazione iniziale più semplice, usa il nostro wizard interattivo:
+The fastest way to get started:
 
 ```bash
-# Clona il repository
+# One-line installation
+curl -fsSL https://raw.githubusercontent.com/matte1240/homelab/main/install.sh | bash
+
+# Navigate to the homelab directory
+cd ~/homelab
+
+# Run interactive setup wizard
+./manage.sh setup
+
+# Start all services
+./manage.sh start
+
+# Check status
+./manage.sh status
+```
+
+### 🔧 Option 2: Manual Installation
+
+If you prefer manual control:
+
+```bash
+# Clone the repository
 git clone https://github.com/matte1240/homelab.git
 cd homelab
 
-# Avvia il setup interattivo
+# Make script executable
+chmod +x manage.sh
+
+# Run interactive setup
 ./manage.sh setup
 ```
 
-Il wizard ti guiderà attraverso:
+### 📋 Setup Wizard Features
+
+Il wizard interattivo ti guiderà attraverso:
 - 🌍 Configurazione timezone e rete
 - ☁️ Setup Cloudflare DDNS (opzionale)
 - 🛡️ Configurazione Pi-hole
 - 📸 Setup Immich per backup foto
+- 🔐 Generazione automatica password sicure
 - 📧 Configurazione SMTP (opzionale)
 
-### 📋 Setup Manuale (Avanzato)
+### 🎯 Alternative Manual Setup
 
 Se preferisci configurare manualmente:
 
