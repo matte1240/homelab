@@ -60,9 +60,9 @@ Questo repository contiene una completa configurazione homelab basata su Docker 
 
 ## 🔧 Servizi Disponibili
 
-### 🔄 Tutti i Servizi (Unificati in `base-services/`)
+### 🔄 Architettura Modulare per Tipologia
 
-⚡ **ATTENZIONE**: Tutti i servizi sono ora consolidati in un unico file Docker Compose per una gestione semplificata.
+⚡ **NUOVA STRUTTURA**: I servizi sono ora organizzati per tipologia in cartelle dedicate per una gestione modulare e pulita.
 
 | Servizio | Porta | URL | Descrizione |
 |----------|-------|-----|-------------|
@@ -89,14 +89,29 @@ Questo repository contiene una completa configurazione homelab basata su Docker 
 
 ## 🚀 Quick Start
 
-### Prerequisiti
+### ⚡ Setup Interattivo (Raccomandato)
 
-- 🐳 [Docker](https://docs.docker.com/get-docker/) installato
-- 🐙 [Docker Compose](https://docs.docker.com/compose/install/) installato
-- 🖥️ Server Linux (Ubuntu/Debian raccomandato)
-- 🌐 Dominio configurato (per DNS dinamico)
+Per la configurazione iniziale più semplice, usa il nostro wizard interattivo:
 
-### Installazione Rapida
+```bash
+# Clona il repository
+git clone https://github.com/matte1240/homelab.git
+cd homelab
+
+# Avvia il setup interattivo
+./manage.sh setup
+```
+
+Il wizard ti guiderà attraverso:
+- 🌍 Configurazione timezone e rete
+- ☁️ Setup Cloudflare DDNS (opzionale)
+- 🛡️ Configurazione Pi-hole
+- 📸 Setup Immich per backup foto
+- 📧 Configurazione SMTP (opzionale)
+
+### 📋 Setup Manuale (Avanzato)
+
+Se preferisci configurare manualmente:
 
 1. **Clona il repository:**
    ```bash
@@ -113,41 +128,35 @@ Questo repository contiene una completa configurazione homelab basata su Docker 
    nano .env
    ```
 
-3. **Rendi eseguibile lo script di gestione:**
+3. **Avvia l'intera infrastruttura:**
    ```bash
-   chmod +x manage.sh
-   ```
-
-4. **Avvia l'intera infrastruttura con un comando:**
-   ```bash
-   # Linux/Mac
    ./manage.sh start
-   
-   # Windows PowerShell  
-   .\manage.ps1 start
    ```
 
-5. **Verifica che tutti i servizi siano attivi:**
-   ```bash
-   # Linux/Mac
-   ./manage.sh status
-   
-   # Windows PowerShell
-   .\manage.ps1 status
-   ```
+### ✅ Verifica Installazione
 
-🎉 **Fatto! Tutti i servizi sono ora attivi e gestiti centralmente.**
+```bash
+# Controlla lo stato dei servizi
+./manage.sh status
 
-### Accesso ai Servizi
+# Testa la connettività
+./manage.sh test
+```
+
+### 🌐 Accesso ai Servizi
 
 Dopo l'avvio, i servizi saranno disponibili ai seguenti indirizzi:
 
-- 🎛️ **Portainer**: http://portainer.local (gestione container)
-- 🎯 **Heimdall**: http://heimdall.local (dashboard servizi)
-- ⏱️ **Uptime Kuma**: http://uptime.local (monitoraggio)
-- 🛡️ **Pi-hole**: http://pihole.local (DNS admin)
-- 🔐 **Vaultwarden**: http://vault.local (password manager)
-- 🏠 **Homer**: http://home.local (dashboard personalizzato)
+- 🎛️ **Portainer**: http://portainer.home (gestione container)
+- 🎯 **Heimdall**: http://heimdall.home (dashboard servizi)
+- ⏱️ **Uptime Kuma**: http://uptime-kuma.home (monitoraggio)
+- 🛡️ **Pi-hole**: http://pihole.home (DNS admin)
+- 🔐 **Vaultwarden**: http://vault.home (password manager)
+- 🏠 **Homer**: http://homer.home (dashboard personalizzato)
+- 📸 **Immich**: http://immich.home (gestione foto)
+- 🔧 **Nginx PM**: http://nginx.home (proxy manager)
+
+> 📚 **Per una guida dettagliata del setup**, consulta [SETUP.md](./SETUP.md)
 - 📸 **Immich**: http://localhost:2283 (backup foto)
 - 🌐 **Traefik Dashboard**: http://traefik.local (reverse proxy)
 
@@ -155,35 +164,45 @@ Dopo l'avvio, i servizi saranno disponibili ai seguenti indirizzi:
 
 ```
 homelab/
-├── 📁 base-services/          # Servizi essenziali
-│   ├── 🐳 compose.yml         # Stack principale Docker Compose
-│   ├── � compose.override.yml # Override per sviluppo
-│   ├── �📄 README.md           # Documentazione servizi base
-│   └── 📁 traefik/            # Configurazione Traefik
-│       ├── ⚙️ traefik.yml      # Configurazione statica
-│       └── ⚙️ dynamic.yml     # Configurazione dinamica
-├── 📁 dyndns/                 # ⚠️ RIMOSSA - DNS ora in base-services
-├── 📁 immich/                 # ⚠️ RIMOSSA - Immich ora in base-services  
-├── 📁 nginx/                  # ⚠️ RIMOSSA - Nginx PM ora in base-services
-├── 🔧 manage.sh               # Script di gestione principale
-├── 📄 .env.example            # Template variabili ambiente globali
-├── 🚫 .gitignore              # File da escludere da Git
+├── � compose.yml             # Master orchestrator
+├── 🔧 manage.sh               # Script di gestione principale  
+├── � .env                    # Variabili ambiente
+└── 📁 services/               # Servizi organizzati per tipologia
+    ├── 🏗️ infrastructure/      # Traefik, Portainer, Watchtower
+    │   ├── 🐳 compose.yml      # Servizi di infrastruttura
+    │   └── 📁 config/          # Configurazioni Traefik
+    ├── 📊 monitoring/          # Heimdall, Uptime Kuma, Homer
+    │   ├── 🐳 compose.yml      # Servizi di monitoraggio
+    │   ├── 📁 data/            # Dati Uptime Kuma
+    │   ├── 📁 config/          # Config Heimdall
+    │   └── 📁 assets/          # Assets Homer
+    ├── 🌐 networking/          # Pi-hole, Nginx PM, Cloudflare
+    │   ├── � compose.yml      # Servizi di rete
+    │   ├── 📁 etc-pihole/      # Configurazioni Pi-hole
+    │   └── � etc-dnsmasq.d/   # DNS personalizzati
+    ├── 🔐 security/            # Vaultwarden
+    │   ├── 🐳 compose.yml      # Servizi di sicurezza
+    │   └── � data/            # Dati Vaultwarden
+    └── 📱 media/               # Stack Immich
+        ├── 🐳 compose.yml      # Servizi media
+        └── 📁 uploads/         # Upload Immich
 ├── 📄 README.md               # Questo file
 ├── 🛠️ TROUBLESHOOTING.md      # Guida risoluzione problemi
 └── 📋 CHANGELOG.md            # Changelog del progetto
 ```
 
-## ⚠️ **IMPORTANTE: Architettura Unificata**
+## ⚠️ **IMPORTANTE: Nuova Architettura Modulare**
 
-🎯 **A partire dalla versione 2.0.0, tutti i servizi sono stati consolidati in un unico file Docker Compose:**
+🎯 **A partire dalla versione 3.0.0, l'homelab è stato riorganizzato con architettura modulare:**
 
-- ✅ **NUOVO**: `base-services/compose.yml` contiene **TUTTI** i servizi
-- ❌ **OBSOLETO**: Le cartelle `dyndns/`, `immich/`, `nginx/` sono state rimosse
-- 🔧 **GESTIONE**: Usa gli script `manage.sh` (Linux/Mac) o `manage.ps1` (Windows)
-- 📊 **MONITORAGGIO**: Tutti i servizi condividono la stessa rete interna
-- 🔒 **SICUREZZA**: Configurazione centralizzata delle variabili ambiente
+- ✅ **NUOVO**: Servizi organizzati per tipologia in `services/`
+- ✅ **MODULARE**: Ogni categoria ha il suo compose.yml dedicato
+- ✅ **ORCHESTRAZIONE**: Master `compose.yml` coordina tutto l'homelab
+- 🔧 **GESTIONE**: Usa lo script `manage.sh` per operazioni centrali
+- 📊 **ORGANIZZAZIONE**: Configurazioni separate per ogni servizio
+- 🔒 **SICUREZZA**: Reti e volumi condivisi gestiti centralmente
 
-### 🚀 **Vantaggi dell'Architettura Unificata:**
+### 🚀 **Vantaggi dell'Architettura Modulare:**
 - 🔧 **Gestione semplificata**: Un solo comando per tutti i servizi
 - 🌐 **Networking ottimizzato**: Comunicazione interna sicura
 - 📈 **Scaling migliorato**: Dipendenze e health check centralizzati

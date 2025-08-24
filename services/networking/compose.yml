@@ -1,0 +1,72 @@
+# =====================================
+# NETWORKING SERVICES
+# =====================================
+# DNS, Proxy management, and network utilities
+
+services:
+  # =====================================
+  # DNS & AD BLOCKING - PIHOLE
+  # =====================================
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+    volumes:
+      - ./etc-pihole:/etc/pihole
+      - ./etc-dnsmasq.d:/etc/dnsmasq.d
+      - ./config/pihole-dnsmasq-homelab.conf:/etc/dnsmasq.d/02-homelab.conf
+    environment:
+      - TZ=Europe/Rome
+      - WEBPASSWORD=${PIHOLE_WEBPASSWORD:-changeme123!}
+      - PIHOLE_DNS_=8.8.8.8;8.8.4.4
+      - SERVERIP=${PIHOLE_SERVERIP:-192.168.178.147}
+    networks:
+      proxy:
+        ipv4_address: 172.20.0.53
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pihole.entrypoints=web"
+      - "traefik.http.routers.pihole.rule=Host(`pihole.home`)"
+      - "traefik.http.services.pihole.loadbalancer.server.port=80"
+
+  # =====================================
+  # NGINX PROXY MANAGER
+  # =====================================
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    ports:
+      - "8180:80"    # HTTP Management Interface
+      - "8181:81"    # Management UI
+      - "8443:443"   # HTTPS Management
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+    environment:
+      - TZ=Europe/Rome
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nginx-pm.entrypoints=web"
+      - "traefik.http.routers.nginx-pm.rule=Host(`nginx.home`)"
+      - "traefik.http.services.nginx-pm.loadbalancer.server.port=81"
+
+  # =====================================
+  # CLOUDFLARE DDNS UPDATER
+  # =====================================
+  cloudflare-ddns:
+    image: oznu/cloudflare-ddns:latest
+    container_name: cloudflare-ddns
+    environment:
+      - API_KEY=${CLOUDFLARE_API_TOKEN}
+      - ZONE=${DOMAINS:-example.com}
+      - SUBDOMAIN=homelab
+      - PROXIED=false
+    networks:
+      - proxy
+    restart: unless-stopped

@@ -1,46 +1,51 @@
-# 📋 Migrazione a Docker Compose Unificato
+# � HOMELAB MIGRATION GUIDE
 
-## ✅ **Migrazione Completata**
+## ✅ **Nuova Architettura Modulare**
 
-Tutti i servizi sono stati consolidati in un unico file Docker Compose in `base-services/compose.yml` per una gestione semplificata.
+L'homelab è stato completamente riorganizzato con un'architettura modulare per tipologia di servizio, sostituendo la struttura monolitica precedente.
 
-## 🗑️ **Directory Legacy Rimosse**
+## 📁 **Nuova Struttura Organizzata**
 
-✅ **Pulizia completata!** Le seguenti directory sono state rimosse:
+### ✅ Cartelle Aggiunte:
+- ✅ `services/infrastructure/` - Traefik, Portainer, Watchtower
+- ✅ `services/monitoring/` - Heimdall, Uptime Kuma, Homer  
+- ✅ `services/networking/` - Pi-hole, Nginx PM, Cloudflare DDNS
+- ✅ `services/security/` - Vaultwarden password manager
+- ✅ `services/media/` - Stack Immich completo
 
-- ❌ `dyndns/` - Cloudflare DDNS ora integrato in base-services
-- ❌ `nginx/` - Nginx Proxy Manager ora integrato in base-services  
-- ❌ `immich/compose.yml` - Stack Immich ora integrato in base-services
-- ❌ `immich/.env.backup` - File backup obsoleto rimosso
-
-✅ **Mantenuto in `immich/`**:
-- ✅ `setup.sh` - Script utile per configurazioni legacy
-- ✅ `.env.example` - Template di esempio
-- ✅ `.gitignore` - Configurazione Git
+### ❌ Cartelle Rimosse:
+- ❌ `base-services/` - Sostituita dalla struttura modulare services/
+- ❌ `dyndns/` - Cloudflare DDNS ora in services/networking/
+- ❌ `nginx/` - Nginx Proxy Manager ora in services/networking/  
+- ❌ `immich/` - Stack Immich ora in services/media/
 
 ## 🔄 **Cosa è Cambiato**
 
-### ✅ **Vantaggi della Nuova Struttura**
-- **Gestione semplificata**: Un solo comando per avviare tutti i servizi
-- **Dipendenze gestite**: Docker Compose gestisce automaticamente l'ordine di avvio
-- **Networking ottimizzato**: Reti interne per sicurezza migliorata
-- **Configurazione centralizzata**: Tutte le variabili ambiente in un posto
-- **Health checks**: Monitoraggio automatico dello stato dei servizi
+### ✅ **Vantaggi della Nuova Architettura Modulare**
+- **Organizzazione per tipologia**: Ogni categoria di servizio ha la sua cartella
+- **Configurazioni separate**: File di config dedicati per ogni servizio
+- **Modularità**: Facile attivare/disattivare categorie di servizi
+- **Manutenibilità**: Codice più pulito e facile da gestire
+- **Scalabilità**: Semplice aggiungere nuovi servizi per categoria
+- **Orchestrazione**: Un master compose.yml che coordina tutto
 
-### 🆕 **Nuovi Comandi**
+### 🆕 **Nuova Struttura di Comando**
 ```bash
-# Avvia tutto
+# Avvia tutto l'homelab
 ./manage.sh start
 
-# Avvia un servizio specifico
-./manage.sh start traefik
-./manage.sh start immich-server
+# Avvia servizi per categoria  
+docker compose --file services/infrastructure/compose.yml up -d
+docker compose --file services/monitoring/compose.yml up -d
 
-# Mostra stato con health checks
+# Mostra stato completo
 ./manage.sh status
 
-# Log di un servizio specifico
-./manage.sh logs immich-server 100
+# Gestione centralizzata
+cd /home/matteo/homelab
+docker compose up -d  # Avvia tutto
+docker compose down   # Ferma tutto
+```
 ```
 
 ### 🌐 **Nuove URL di Accesso**

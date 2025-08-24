@@ -292,7 +292,118 @@ check_immich_setup() {
 }
 
 # ================================
-# SERVICE MANAGEMENT
+# INTERACTIVE SETUP
+# ================================
+
+interactive_setup() {
+    log_header "INTERACTIVE HOMELAB SETUP"
+    
+    if [[ -f "$ENV_FILE" ]]; then
+        log_warning ".env file already exists!"
+        read -p "Do you want to overwrite it? (y/N): " -r
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log_info "Setup cancelled. Existing .env file preserved."
+            return 0
+        fi
+    fi
+    
+    log_info "This wizard will help you configure your homelab environment."
+    echo
+    
+    # Copy template
+    if [[ ! -f "${SCRIPT_DIR}/.env.example" ]]; then
+        log_error ".env.example not found!"
+        exit 1
+    fi
+    
+    cp "${SCRIPT_DIR}/.env.example" "$ENV_FILE"
+    
+    # General Configuration
+    log_info "${YELLOW}General Configuration${NC}"
+    read -p "Enter your timezone (default: Europe/Rome): " -r tz
+    tz=${tz:-Europe/Rome}
+    sed -i "s|TZ=.*|TZ=$tz|" "$ENV_FILE"
+    
+    # Cloudflare Configuration
+    echo
+    log_info "${YELLOW}Cloudflare DDNS Configuration${NC}"
+    log_info "Get your API token from: https://dash.cloudflare.com/profile/api-tokens"
+    read -p "Enter Cloudflare API Token: " -r cf_token
+    read -p "Enter your domain (e.g., example.com): " -r domain
+    
+    sed -i "s|CLOUDFLARE_API_TOKEN=.*|CLOUDFLARE_API_TOKEN=$cf_token|" "$ENV_FILE"
+    sed -i "s|DOMAINS=.*|DOMAINS=$domain|" "$ENV_FILE"
+    
+    # Pi-hole Configuration
+    echo
+    log_info "${YELLOW}Pi-hole Configuration${NC}"
+    read -p "Enter Pi-hole web admin password: " -s pihole_pass
+    echo
+    read -p "Enter Pi-hole server IP (your homelab IP, e.g., 192.168.1.100): " -r pihole_ip
+    
+    sed -i "s|PIHOLE_WEBPASSWORD=.*|PIHOLE_WEBPASSWORD=$pihole_pass|" "$ENV_FILE"
+    sed -i "s|PIHOLE_SERVERIP=.*|PIHOLE_SERVERIP=$pihole_ip|" "$ENV_FILE"
+    
+    # Immich Configuration
+    echo
+    log_info "${YELLOW}Immich Photo Server Configuration${NC}"
+    read -p "Enter Immich database password: " -s immich_db_pass
+    echo
+    
+    # Generate JWT secret (minimum 32 characters)
+    immich_jwt=$(openssl rand -hex 32)
+    
+    sed -i "s|IMMICH_DB_PASSWORD=.*|IMMICH_DB_PASSWORD=$immich_db_pass|" "$ENV_FILE"
+    sed -i "s|IMMICH_JWT_SECRET=.*|IMMICH_JWT_SECRET=$immich_jwt|" "$ENV_FILE"
+    
+    # Vaultwarden Configuration
+    echo
+    log_info "${YELLOW}Vaultwarden Password Manager Configuration${NC}"
+    # Generate admin token
+    vault_token=$(openssl rand -hex 32)
+    sed -i "s|VAULTWARDEN_ADMIN_TOKEN=.*|VAULTWARDEN_ADMIN_TOKEN=$vault_token|" "$ENV_FILE"
+    log_info "Generated Vaultwarden admin token: $vault_token"
+    log_warning "Save this token - you'll need it to access the admin panel!"
+    
+    # CrowdSec Configuration
+    echo
+    log_info "${YELLOW}CrowdSec Security Configuration${NC}"
+    # Generate bouncer key
+    bouncer_key=$(openssl rand -hex 32)
+    sed -i "s|CROWDSEC_BOUNCER_KEY=.*|CROWDSEC_BOUNCER_KEY=$bouncer_key|" "$ENV_FILE"
+    
+    # Optional SMTP Configuration
+    echo
+    read -p "Do you want to configure SMTP for email notifications? (y/N): " -r setup_smtp
+    if [[ $setup_smtp =~ ^[Yy]$ ]]; then
+        log_info "${YELLOW}SMTP Configuration${NC}"
+        read -p "SMTP hostname (e.g., smtp.gmail.com): " -r smtp_host
+        read -p "SMTP port (default: 587): " -r smtp_port
+        smtp_port=${smtp_port:-587}
+        read -p "SMTP username/email: " -r smtp_user
+        read -p "SMTP password/app password: " -s smtp_pass
+        echo
+        
+        sed -i "s|# SMTP_HOSTNAME=.*|SMTP_HOSTNAME=$smtp_host|" "$ENV_FILE"
+        sed -i "s|# SMTP_PORT=.*|SMTP_PORT=$smtp_port|" "$ENV_FILE"
+        sed -i "s|# SMTP_USERNAME=.*|SMTP_USERNAME=$smtp_user|" "$ENV_FILE"
+        sed -i "s|# SMTP_PASSWORD=.*|SMTP_PASSWORD=$smtp_pass|" "$ENV_FILE"
+    fi
+    
+    echo
+    log_success "Configuration complete! .env file created successfully."
+    log_info "You can now start your homelab with: ${GREEN}./manage.sh start${NC}"
+    echo
+    log_info "Generated credentials:"
+    echo "  • Vaultwarden Admin Token: $vault_token"
+    echo "  • Pi-hole Admin URL: http://pihole.home/admin"
+    echo "  • Traefik Dashboard: http://traefik.home"
+    echo
+    log_warning "Keep these credentials secure!"
+}
+
+# ================================
+# ENVIRONMENT & REQUIREMENTS
 # ================================
 
 start_all() {
@@ -361,13 +472,13 @@ show_status() {
     
     cd "$MAIN_COMPOSE_DIR"
     
-    # Get list of services from compose file
-    local services
-    services=$(docker-compose config --services)
+    # List of expected services - using hardcoded list since include-based compose.yml doesn't work with config --services
+    local services="traefik portainer heimdall uptime-kuma pihole vaultwarden crowdsec homer immich nginx watchtower cloudflare"
     
     for service in $services; do
+        # Try to find container by service name pattern
         local container_name
-        container_name=$(docker-compose ps -q "$service" 2>/dev/null)
+        container_name=$(docker ps -a --format "{{.Names}}" | grep -E "^(homelab[_-])?${service}[_-]?[0-9]*$|^${service}$|${service}" | head -1)
         
         if [[ -n "$container_name" ]]; then
             local status
@@ -399,15 +510,18 @@ show_status() {
     
     echo
     log_info "Access URLs:"
-    echo "  🎛️  Portainer:      http://portainer.local"
-    echo "  🎯  Heimdall:       http://heimdall.local"
-    echo "  ⏱️  Uptime Kuma:    http://uptime.local"
-    echo "  🛡️  Pi-hole:        http://pihole.local"
-    echo "  🔐  Vaultwarden:    http://vault.local"
-    echo "  🏠  Homer:          http://home.local"
-    echo "  📸  Immich:         http://immich.local"
-    echo "  🌐  Traefik:        http://traefik.local"
-    echo "  🔧  Nginx PM:       http://nginx.local"
+    echo "  🔀  Traefik:        http://traefik.home"
+    echo "  🎛️  Portainer:      http://portainer.home"
+    echo "  🎯  Heimdall:       http://heimdall.home"
+    echo "  ⏱️  Uptime Kuma:    http://uptime-kuma.home"
+    echo "  🛡️  Pi-hole:        http://pihole.home"
+    echo "  🔐  Vaultwarden:    http://vault.home"
+    echo "  🏠  Homer:          http://homer.home"
+    echo "  📸  Immich:         http://immich.home"
+    echo "  �  Nginx PM:       http://nginx.home"
+    echo
+    log_info "API Endpoints:"
+    echo "  🚔  CrowdSec API:   http://crowdsec.home (API only, no web UI)"
 }
 
 show_logs() {
@@ -416,7 +530,7 @@ show_logs() {
     
     log_info "Showing last $lines lines for $service..."
     cd "$MAIN_COMPOSE_DIR"
-    docker-compose logs --tail="$lines" -f "$service"
+    docker compose logs --tail="$lines" -f "$service"
 }
 
 # ================================
@@ -489,49 +603,49 @@ cleanup() {
 # ================================
 
 show_help() {
-    cat << EOF
-${PURPLE}Homelab Management Script${NC}
-
-${YELLOW}USAGE:${NC}
-    ./manage.sh [COMMAND] [OPTIONS]
-
-${YELLOW}COMMANDS:${NC}
-    ${GREEN}start [service]${NC}     Start service or all services
-    ${GREEN}stop [service]${NC}      Stop service or all services  
-    ${GREEN}restart [service]${NC}   Restart service or all services
-    ${GREEN}status${NC}              Show status of all services
-    ${GREEN}logs [service] [lines]${NC} Show logs for service (default: 50 lines)
-    ${GREEN}update${NC}              Update all services
-    ${GREEN}cleanup${NC}             Clean unused Docker resources
-    ${GREEN}backup${NC}              Create backup of configurations
-    ${GREEN}help${NC}                Show this help message
-
-${YELLOW}SERVICES:${NC}
-    • traefik             (Reverse proxy)
-    • portainer           (Container management)
-    • heimdall            (Dashboard)
-    • uptime-kuma         (Uptime monitoring)
-    • watchtower          (Auto updates)
-    • pihole              (DNS & Ad blocking)
-    • vaultwarden         (Password manager)
-    • homer               (Custom dashboard)
-    • cloudflare-ddns     (Dynamic DNS)
-    • immich-server       (Photo backup server)
-    • immich-postgres     (Immich database)
-    • immich-redis        (Immich cache)
-    • nginx-proxy-manager (Nginx proxy manager)
-
-${YELLOW}EXAMPLES:${NC}
-    ./manage.sh start              # Start all services
-    ./manage.sh start traefik      # Start only Traefik
-    ./manage.sh logs immich-server 100  # Show last 100 lines of Immich logs
-    ./manage.sh status             # Show status of all services
-
-${YELLOW}REQUIREMENTS:${NC}
-    • Docker and Docker Compose installed
-    • .env file configured (copy from .env.example)
-
-EOF
+    echo
+    echo -e "${PURPLE}🏠 Homelab Management Script${NC}"
+    echo
+    echo -e "${YELLOW}📋 USAGE:${NC}"
+    echo "    ./manage.sh [COMMAND] [OPTIONS]"
+    echo
+    echo -e "${YELLOW}⚡ COMMANDS:${NC}"
+    printf "    ${GREEN}%-20s${NC} %s\n" "setup" "🔧 Interactive configuration wizard"
+    printf "    ${GREEN}%-20s${NC} %s\n" "start [service]" "▶️  Start service or all services"
+    printf "    ${GREEN}%-20s${NC} %s\n" "stop [service]" "⏹️  Stop service or all services"
+    printf "    ${GREEN}%-20s${NC} %s\n" "restart [service]" "🔄 Restart service or all services"
+    printf "    ${GREEN}%-20s${NC} %s\n" "status" "📊 Show status of all services"
+    printf "    ${GREEN}%-20s${NC} %s\n" "logs [service]" "📝 Show logs for service"
+    printf "    ${GREEN}%-20s${NC} %s\n" "update" "⬆️  Update all services"
+    printf "    ${GREEN}%-20s${NC} %s\n" "cleanup" "🧹 Clean unused Docker resources"
+    printf "    ${GREEN}%-20s${NC} %s\n" "backup" "💾 Create backup of configurations"
+    printf "    ${GREEN}%-20s${NC} %s\n" "help" "❓ Show this help message"
+    echo
+    echo -e "${YELLOW}🐳 SERVICES:${NC}"
+    printf "    • %-18s %s\n" "traefik" "🔀 Reverse proxy"
+    printf "    • %-18s %s\n" "portainer" "🎛️  Container management"
+    printf "    • %-18s %s\n" "heimdall" "🎯 Dashboard"
+    printf "    • %-18s %s\n" "uptime-kuma" "⏱️  Uptime monitoring"
+    printf "    • %-18s %s\n" "watchtower" "🔄 Auto updates"
+    printf "    • %-18s %s\n" "pihole" "🛡️  DNS & Ad blocking"
+    printf "    • %-18s %s\n" "vaultwarden" "🔐 Password manager"
+    printf "    • %-18s %s\n" "crowdsec" "🚔 Security system"
+    printf "    • %-18s %s\n" "homer" "🏠 Custom dashboard"
+    printf "    • %-18s %s\n" "immich" "📸 Photo backup server"
+    printf "    • %-18s %s\n" "nginx" "🔧 Nginx proxy manager"
+    printf "    • %-18s %s\n" "cloudflare" "☁️  Dynamic DNS"
+    echo
+    echo -e "${YELLOW}💡 EXAMPLES:${NC}"
+    printf "    ${CYAN}%-35s${NC} %s\n" "./manage.sh setup" "# Run interactive setup wizard"
+    printf "    ${CYAN}%-35s${NC} %s\n" "./manage.sh start" "# Start all services"
+    printf "    ${CYAN}%-35s${NC} %s\n" "./manage.sh start traefik" "# Start only Traefik"
+    printf "    ${CYAN}%-35s${NC} %s\n" "./manage.sh logs immich 100" "# Show last 100 lines of Immich logs"
+    printf "    ${CYAN}%-35s${NC} %s\n" "./manage.sh status" "# Show status of all services"
+    echo
+    echo -e "${YELLOW}📋 REQUIREMENTS:${NC}"
+    echo "    • Docker and Docker Compose installed"
+    echo "    • .env file configured (run setup command)"
+    echo
 }
 
 # ================================
@@ -543,6 +657,9 @@ main() {
     ensure_docker
     
     case "${1:-}" in
+        "setup")
+            interactive_setup
+            ;;
         "start")
             check_requirements
             if ! check_env_file; then

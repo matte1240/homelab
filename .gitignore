@@ -6,18 +6,32 @@
 .env.*.local
 
 # =================================
-# RUNTIME DATA & VOLUMES  
+# CONFIGURATION & DATA DIRECTORIES
 # =================================
-# Base services data (all services now unified here)
-base-services/traefik/data/
-base-services/traefik/logs/
-base-services/heimdall/
-base-services/uptime-kuma/
-base-services/pihole/
-base-services/vaultwarden/
-base-services/homer/
-base-services/nginx/
-base-services/immich/
+# Configurazioni private e dati runtime
+config/
+data/
+*.log
+*.db
+*.db-*
+
+# =================================
+# SERVICE DATA DIRECTORIES
+# =================================
+# Dati specifici dei servizi (nuova struttura modulare)
+services/*/data/
+services/*/config/
+services/*/uploads/
+services/*/etc-*/
+services/*/letsencrypt/
+
+# =================================
+# DOCKER VOLUMES & RUNTIME
+# =================================
+# Volumi Docker persistenti
+**/docker-tls/
+**/screenshots/
+**/upload/
 
 # Allow Traefik config files
 !base-services/traefik/*.yml

@@ -1,0 +1,43 @@
+# =====================================
+# HOMELAB COMPOSE - MASTER ORCHESTRATOR
+# =====================================
+# This file orchestrates all service categories from their dedicated folders
+# Usage: docker compose up -d
+
+include:
+  - path: services/infrastructure/compose.yml    # Traefik, Portainer, Watchtower
+  - path: services/monitoring/compose.yml        # Heimdall, Uptime Kuma, Homer
+  - path: services/networking/compose.yml        # Pi-hole, Nginx PM, Cloudflare DDNS
+  - path: services/security/compose.yml          # Vaultwarden
+  - path: services/media/compose.yml            # Immich services
+
+# =====================================
+# SHARED NETWORKS
+# =====================================
+networks:
+  proxy:
+    name: homelab_proxy
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+  immich:
+    name: homelab_immich
+    driver: bridge
+    internal: true  # Internal network for Immich services
+
+# =====================================
+# SHARED VOLUMES
+# =====================================
+volumes:
+  # Infrastructure volumes
+  portainer_data:
+    name: homelab_portainer_data
+  
+  # Media volumes  
+  immich-postgres-data:
+    name: homelab_immich_postgres
+  immich-redis-data:
+    name: homelab_immich_redis
+  immich-model-cache:
+    name: homelab_immich_models

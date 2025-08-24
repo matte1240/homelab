@@ -1,0 +1,64 @@
+# =====================================
+# MONITORING SERVICES
+# =====================================
+# Dashboard and service monitoring services
+
+services:
+  # =====================================
+  # SERVICE MONITORING - UPTIME KUMA
+  # =====================================
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=Europe/Rome
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.uptime-kuma.entrypoints=web"
+      - "traefik.http.routers.uptime-kuma.rule=Host(`uptime-kuma.home`)"
+      - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
+
+  # =====================================
+  # SERVICE DASHBOARD - HEIMDALL
+  # =====================================
+  heimdall:
+    image: lscr.io/linuxserver/heimdall:latest
+    container_name: heimdall
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Rome
+    volumes:
+      - ./config:/config
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.heimdall.entrypoints=web"
+      - "traefik.http.routers.heimdall.rule=Host(`heimdall.home`)"
+      - "traefik.http.services.heimdall.loadbalancer.server.port=80"
+
+  # =====================================
+  # ALTERNATIVE DASHBOARD - HOMER
+  # =====================================
+  homer:
+    image: b4bz/homer:latest
+    container_name: homer
+    volumes:
+      - ./assets:/www/assets
+    environment:
+      - TZ=Europe/Rome
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.homer.entrypoints=web"
+      - "traefik.http.routers.homer.rule=Host(`homer.home`)"
+      - "traefik.http.services.homer.loadbalancer.server.port=8080"

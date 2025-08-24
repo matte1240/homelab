@@ -1,0 +1,11 @@
+y
+Europe/Rome
+
+password123
+192.168.1.100
+
+password123
+
+
+n
+n

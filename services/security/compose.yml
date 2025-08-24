@@ -1,0 +1,78 @@
+# =====================================
+# SECURITY SERVICES
+# =====================================
+# Password management and security tools
+
+services:
+  # =====================================
+  # PASSWORD MANAGER - VAULTWARDEN
+  # =====================================
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    volumes:
+      - ./data:/data
+    environment:
+      - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN:-your-admin-token}
+      - SENDS_ALLOWED=true
+      - EMERGENCY_ACCESS_ALLOWED=true
+      - WEB_VAULT_ENABLED=true
+      - SIGNUPS_ALLOWED=false
+      - INVITATIONS_ALLOWED=true
+      - TZ=Europe/Rome
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vaultwarden.entrypoints=web"
+      - "traefik.http.routers.vaultwarden.rule=Host(`vault.home`)"
+      - "traefik.http.services.vaultwarden.loadbalancer.server.port=80"
+
+  # =====================================
+  # SECURITY BOUNCER - CROWDSEC
+  # =====================================
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    container_name: crowdsec
+    environment:
+      - COLLECTIONS=crowdsecurity/traefik crowdsecurity/http-cve crowdsecurity/whitelist-good-actors crowdsecurity/iptables crowdsecurity/linux
+      - GID=${GID:-1000}
+      - CUSTOM_HOSTNAME=homelab-crowdsec
+      - TZ=Europe/Rome
+      - BOUNCER_KEY_traefik=${CROWDSEC_BOUNCER_KEY:-generate-random-key}
+    volumes:
+      - ./crowdsec/config:/etc/crowdsec/acquis:rw
+      - ./crowdsec/data:/var/lib/crowdsec/data:rw
+      - /var/log/auth.log:/logs/auth.log:ro
+      - /var/log/syslog:/logs/syslog.log:ro
+      - /var/log/kern.log:/logs/kern.log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Mount Traefik logs
+      - ../infrastructure/logs:/logs/traefik:ro
+    networks:
+      - proxy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.crowdsec.entrypoints=web"
+      - "traefik.http.routers.crowdsec.rule=Host(`crowdsec.home`)"
+      - "traefik.http.services.crowdsec.loadbalancer.server.port=8080"
+
+  # =====================================
+  # TRAEFIK BOUNCER - CROWDSEC-TRAEFIK
+  # =====================================
+  crowdsec-traefik-bouncer:
+    image: docker.io/fbonalair/traefik-crowdsec-bouncer:latest
+    container_name: crowdsec-traefik-bouncer
+    environment:
+      - CROWDSEC_BOUNCER_API_KEY=${CROWDSEC_BOUNCER_KEY:-generate-random-key}
+      - CROWDSEC_AGENT_HOST=crowdsec:8080
+      - GIN_MODE=release
+    networks:
+      - proxy
+    depends_on:
+      - crowdsec
+    restart: unless-stopped

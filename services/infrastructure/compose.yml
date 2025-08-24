@@ -1,0 +1,84 @@
+# =====================================
+# INFRASTRUCTURE SERVICES
+# =====================================
+# Core infrastructure: Reverse proxy, Container management, Auto-updates
+
+services:
+  # =====================================
+  # REVERSE PROXY - TRAEFIK
+  # =====================================
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Dashboard
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config:/etc/traefik
+      - ./logs:/var/log/traefik
+    environment:
+      - TZ=${TZ:-Europe/Rome}
+    networks:
+      - proxy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.entrypoints=web"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.home`)"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+      # CrowdSec middleware
+      - "traefik.http.middlewares.crowdsec.forwardauth.address=http://crowdsec-traefik-bouncer:8080/api/v1/forwardAuth"
+      - "traefik.http.middlewares.crowdsec.forwardauth.trustForwardHeader=true"
+
+  # =====================================
+  # CONTAINER MANAGEMENT - PORTAINER
+  # =====================================
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "9443:9443"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - portainer_data:/data
+    environment:
+      - TZ=Europe/Rome
+    networks:
+      - proxy
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.entrypoints=web"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.home`)"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+
+  # =====================================
+  # AUTO UPDATES - WATCHTOWER
+  # =====================================
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_SCHEDULE=0 2 * * *  # Every day at 2 AM
+      - WATCHTOWER_INCLUDE_STOPPED=true
+      - WATCHTOWER_REVIVE_STOPPED=false
+      - TZ=${TZ:-Europe/Rome}
+    networks:
+      - proxy
+    restart: unless-stopped
